@@ -21,12 +21,7 @@ max_input_len = 35
 alhabets_len = 26
 
 
-def encode_word(masked_word, clean_word, incorrect_guesses=None):
-    # Encode the masked word into integer indices for embedding
-    if incorrect_guesses is None:
-        possible_incorrect_guesses = list(set(string.ascii_lowercase) - set(clean_word))
-        incorrect_guesses = random.sample(possible_incorrect_guesses, k=random.randint(0, max_tries))
-        incorrect_guesses = "".join(incorrect_guesses)
+def encode_word(masked_word, clean_word, incorrect_guesses):
 
     masked_word = incorrect_guesses.ljust(max_tries, ' ') + masked_word.rjust(max_input_len - max_tries, ' ')
     encoded = [c2i.get(char) for char in masked_word]
@@ -54,35 +49,44 @@ class NeuralNetworkHangman:
         output_layer = Dense(alhabets_len, activation='softmax')(dense_layer)
 
         model = Model(inputs=input_layer, outputs=output_layer)
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.01),
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.005),
                       loss='sparse_categorical_crossentropy', metrics=['accuracy'])
         return model
 
     def preprocess_data(self, new_model):
         # if not new_model:
-        self.x_train = np.array(pd.read_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
-        self.y_train = np.array(pd.read_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
-        return
+        # self.x_train = np.array(pd.read_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
+        # self.y_train = np.array(pd.read_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
+        # return
 
 
-        # x_train = []
-        # y_train = []
-        # for clean_word in self.dictionary:
-        #     self.masked_set = set()
-        #     for _ in range(20):  # Generating multiple examples per word
-        #         masked_word, target = self.random_mask(clean_word)
-        #         if masked_word is not None:
-        #             x_train.append(encode_word(masked_word, clean_word))
-        #             y_train.append(self.c2i[target])
-        # self.x_train = np.array(x_train)
-        # self.y_train = np.array(y_train)
-        # pd.DataFrame(self.x_train).to_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv')
-        # pd.DataFrame(self.y_train).to_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv')
+        x_train = []
+        y_train = []
+        for clean_word in self.dictionary:
+            self.masked_set = set()
+            for _ in range(20):  # Generating multiple examples per word
+                masked_word, target = self.random_mask(clean_word)
+                if masked_word is not None:
+                    x_train.append(encode_word(masked_word, clean_word))
+                    y_train.append(self.c2i[target])
+        self.x_train = np.array(x_train)
+        self.y_train = np.array(y_train)
+        pd.DataFrame(self.x_train).to_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv')
+        pd.DataFrame(self.y_train).to_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv')
         print()
 
     def train(self, epochs=max_epochs, batch_size=300):
 
+
+
         for epoch in range(epochs):
+            if epoch == 0:
+                for i in range(len(self.x_train)):
+                    self.x_train[i][0:max_tries] = c2i.get(' ')
+
+            pd.DataFrame(self.x_train).to_csv(f'x_train_ngrams_incorrect_words_encoded_epoch{epoch}.csv')
+            pd.DataFrame(self.y_train).to_csv(f'y_train_ngrams_incorrect_words_encoded_epoch{epoch}.csv')
+
             checkpoint = ModelCheckpoint(
                 f'model_checkpoint_h{epoch+20}.keras',
                 monitor='val_accuracy',
@@ -92,7 +96,7 @@ class NeuralNetworkHangman:
                 verbose=1)
             early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
             self.model.fit(self.x_train, self.y_train, epochs=1, batch_size=batch_size,
-                           validation_split=0.05, callbacks=[checkpoint, early_stopping])
+                           validation_split=0.02, callbacks=[checkpoint, early_stopping])
 
             probabilities = self.model.predict(self.x_train)
 
@@ -101,9 +105,6 @@ class NeuralNetworkHangman:
 
                 if guess != self.y_train[i]:
                     self.x_train[i][epoch] = guess
-                if epoch == 0:
-                    self.x_train[i][epoch+1:max_tries] = c2i.get(' ')
-
 
 
     @functools.lru_cache(maxsize=21)
@@ -163,7 +164,7 @@ class HangmanLocal:
         full_dictionary_location = "words_250000_train.txt"
         self.train_dict, self.test_dict = self.build_dictionary(full_dictionary_location, new_model)
         if not new_model:
-            self.model = load_model('model_checkpoint_h10.keras')
+            self.model = load_model('model_checkpoint_h24.keras')
         else:
             self.nn = NeuralNetworkHangman(self.train_dict, new_model)
             self.nn.train(epochs=max_epochs)
@@ -173,10 +174,10 @@ class HangmanLocal:
         self.clean_word = ""
         self.masked_word = ""
         self.tries_remain = max_tries
-        self.incorrect_guesses = None
+        self.incorrect_guesses = ""
 
 
-    def build_dictionary(self, dictionary_file_location, new_model, tt_split=0.8):
+    def build_dictionary(self, dictionary_file_location, new_model, tt_split=0.95):
         if new_model:
             with open(dictionary_file_location, "r") as text_file:
                 full_dict = text_file.read().splitlines()
@@ -189,14 +190,15 @@ class HangmanLocal:
 
         return full_dict[:int(tt_split * len(full_dict))], full_dict[int(tt_split * len(full_dict)):]
 
-    def predict_letter(self, incorrect_guesses=None):
+    def predict_letter(self, incorrect_guesses=""):
         encoded = encode_word(self.masked_word.replace(" ",""), self.clean_word, incorrect_guesses)
         probabilities = self.model.predict(np.array([encoded]))[0]
 
 
         for idx, letter in enumerate(string.ascii_lowercase):
+
             if letter in self.guessed_letters:
-                probabilities[idx] = -2  # Exclude guessed letters
+                probabilities[idx] = -2 # Exclude guessed letters
 
         guess = string.ascii_lowercase[np.argmax(probabilities)]
         if guess not in self.clean_word:
@@ -207,7 +209,7 @@ class HangmanLocal:
 
         return guess
 
-    def guess(self, incorrect_guesses=None):
+    def guess(self, incorrect_guesses=""):
         return self.predict_letter(incorrect_guesses)
 
     def start_new_game(self, word=None):
@@ -215,7 +217,7 @@ class HangmanLocal:
         self.clean_word = word if word else random.choice(self.test_dict)
         self.masked_word = ' _' * len(self.clean_word)
         self.tries_remain = 6
-        self.incorrect_guesses = None
+        self.incorrect_guesses = ""
 
     def make_guess(self, letter):
         self.guessed_letters.append(letter)
@@ -248,8 +250,8 @@ class HangmanLocal:
 
 
 if __name__ == '__main__':
-    hangman = HangmanLocal(new_model=True)
-    n_trials = 200
+    hangman = HangmanLocal(new_model=False)
+    n_trials = 400
     wins = 0
     for _ in range(n_trials):
         if hangman.play_game():
