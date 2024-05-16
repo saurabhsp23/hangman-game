@@ -20,9 +20,7 @@ c2i = {letter: idx for idx, letter in enumerate(string.ascii_lowercase + '_ ')}
 max_input_len = 35
 alhabets_len = 26
 
-
 def encode_word(masked_word, clean_word, incorrect_guesses):
-
     masked_word = incorrect_guesses.ljust(max_tries, ' ') + masked_word.rjust(max_input_len - max_tries, ' ')
     encoded = [c2i.get(char) for char in masked_word]
     return np.array(encoded)
@@ -33,8 +31,8 @@ class NeuralNetworkHangman:
         self.dictionary = dictionary
         self.embedding_dim = 64  # Dimensionality of embedding layer
         self.c2i = c2i
-        self.model = self.build_model()
-        self.preprocess_data(new_model)
+        self.model = self.build_model()  # Build the model
+        self.preprocess_data(new_model)  # Preprocess the data
 
     def build_model(self):
         input_layer = Input(shape=(self.max_input_len,))
@@ -54,12 +52,6 @@ class NeuralNetworkHangman:
         return model
 
     def preprocess_data(self, new_model):
-        # if not new_model:
-        # self.x_train = np.array(pd.read_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
-        # self.y_train = np.array(pd.read_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv', index_col=0))
-        # return
-
-
         x_train = []
         y_train = []
         for clean_word in self.dictionary:
@@ -73,20 +65,19 @@ class NeuralNetworkHangman:
         self.y_train = np.array(y_train)
         pd.DataFrame(self.x_train).to_csv('x_train_ngrams_0.8_incorrect_words_encoded.csv')
         pd.DataFrame(self.y_train).to_csv('y_train_ngrams_0.8_incorrect_words_encoded.csv')
-        print()
 
     def train(self, epochs=max_epochs, batch_size=300):
-
-
-
         for epoch in range(epochs):
             if epoch == 0:
+                # Initialize the first max_tries positions with spaces
                 for i in range(len(self.x_train)):
                     self.x_train[i][0:max_tries] = c2i.get(' ')
 
+            # Save training data at each epoch
             pd.DataFrame(self.x_train).to_csv(f'x_train_ngrams_incorrect_words_encoded_epoch{epoch}.csv')
             pd.DataFrame(self.y_train).to_csv(f'y_train_ngrams_incorrect_words_encoded_epoch{epoch}.csv')
 
+            # Checkpoint to save the best model
             checkpoint = ModelCheckpoint(
                 f'model_checkpoint_h{epoch+20}.keras',
                 monitor='val_accuracy',
@@ -102,14 +93,11 @@ class NeuralNetworkHangman:
 
             for i in range(len(self.x_train)):
                 guess = np.argmax(probabilities[i])
-
                 if guess != self.y_train[i]:
                     self.x_train[i][epoch] = guess
 
-
     @functools.lru_cache(maxsize=21)
     def find_most_common_ngrams(self, word, n=5):
-
         n_gram_counts = Counter()
         n = min(n, len(word))
         for j in range(0, n):
@@ -121,8 +109,6 @@ class NeuralNetworkHangman:
     def random_mask(self, word):
         letters_to_mask = set(random.sample(word, k=random.randint(1, len(word))))
         masked_word_list = list(word)
-
-        # Mask letters randomly
         for i in range(len(masked_word_list)):
             if masked_word_list[i] in letters_to_mask:
                 masked_word_list[i] = '_'
@@ -133,10 +119,7 @@ class NeuralNetworkHangman:
 
         common_ngrams = self.find_most_common_ngrams(word)
         targeted_guess_counts = Counter()
-
-        # Analyze each ngram and its context within the word
         for ngram, count in common_ngrams:
-
             for match in re.finditer('(?=' + re.escape(ngram) + ')', word):
                 start = match.start()
                 end = start + len(ngram)
@@ -146,18 +129,14 @@ class NeuralNetworkHangman:
                 if len(unknown_letters) == 1 and unknown_letters[0].isalpha():
                     targeted_guess_counts[unknown_letters[0]] += len(ngram)
 
-        # Determine the most frequently occurring targeted guess
         if targeted_guess_counts:
             n_mc_occurence = targeted_guess_counts.most_common()[0][1]
             largest_occuring_targets = [k for k, v in targeted_guess_counts.most_common() if v == n_mc_occurence]
-            # Choose the most common masked letter from the ngram analysis
             target = random.choice(largest_occuring_targets)
         else:
-            # If no suitable target found, default to any masked letter
             target = Counter(letters_to_mask).most_common()[0][0]
 
         return masked_word, target
-
 
 class HangmanLocal:
     def __init__(self, new_model=True):
@@ -176,14 +155,12 @@ class HangmanLocal:
         self.tries_remain = max_tries
         self.incorrect_guesses = ""
 
-
     def build_dictionary(self, dictionary_file_location, new_model, tt_split=0.95):
         if new_model:
             with open(dictionary_file_location, "r") as text_file:
                 full_dict = text_file.read().splitlines()
                 random.shuffle(full_dict)
                 pd.DataFrame(full_dict).to_csv('shuffled_dict.csv', index=None)
-
         else:
             full_dict = pd.read_csv('shuffled_dict.csv')
             full_dict = list(full_dict['0'])
@@ -193,20 +170,15 @@ class HangmanLocal:
     def predict_letter(self, incorrect_guesses=""):
         encoded = encode_word(self.masked_word.replace(" ",""), self.clean_word, incorrect_guesses)
         probabilities = self.model.predict(np.array([encoded]))[0]
-
-
         for idx, letter in enumerate(string.ascii_lowercase):
-
             if letter in self.guessed_letters:
-                probabilities[idx] = -2 # Exclude guessed letters
-
+                probabilities[idx] = -2  # Exclude guessed letters
         guess = string.ascii_lowercase[np.argmax(probabilities)]
         if guess not in self.clean_word:
             if incorrect_guesses is not None:
                 self.incorrect_guesses += guess
             else:
                 self.incorrect_guesses = guess
-
         return guess
 
     def guess(self, incorrect_guesses=""):
@@ -232,7 +204,6 @@ class HangmanLocal:
 
     def play_game(self, word=None):
         self.start_new_game(word)
-
         while self.tries_remain > 0 and "_" in self.masked_word:
             print(f"Current masked word: {self.masked_word}")
             guess_letter = self.guess(self.incorrect_guesses)
@@ -242,12 +213,13 @@ class HangmanLocal:
             else:
                 print(f"Correct guess: {guess_letter}")
             print(f"Word: {self.masked_word}, Tries left: {self.tries_remain}")
+           # Check if the word has been fully guessed
             if "_" not in self.masked_word:
                 print(f"Successfully guessed the word: {self.clean_word}")
                 return True
+        # If no tries remain and the word is not fully guessed
         print(f"Failed to guess the word: {self.clean_word}")
         return False
-
 
 if __name__ == '__main__':
     hangman = HangmanLocal(new_model=False)
