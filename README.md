@@ -2,9 +2,9 @@ Here is the README content:
 
 ---
 
-# Refactored Hangman Neural Network Project
+#  Hangman Project
 
-This project implements a neural network-based Hangman game. The code has been modularized for better readability, maintainability, and extensibility.
+This project implements a LSTM-based Hangman game. The code has been modularized for better readability, maintainability, and extensibility.
 
 ## Directory Structure
 
