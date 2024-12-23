@@ -1,7 +1,3 @@
-Here is the README content:
-
----
-
 #  Hangman Project
 
 This project implements a LSTM-based Hangman game. The code has been modularized for better readability, maintainability, and extensibility.
