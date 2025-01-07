@@ -28,11 +28,20 @@ This project implements a LSTM-based Hangman game. The code has been modularized
 4. **Play the Game**:
    After training, the game logic can be tested by invoking the methods in `game_logic.py` or directly running `main.py`.
 
-## Project Overview
+## Model Overview
 
-This project utilizes an LSTM-based neural network model with an attention mechanism to predict letters in the Hangman game. The pipeline includes:
+1. **Embedding Layer**:
+    - Converts input tokens (characters) into dense vector representations, enabling the model to learn
+      semantic relationships between characters.
+2. **LSTM Layer**:
+    - Processes sequences of characters, capturing dependencies and context in the game.
+3. **Attention Mechanism**:
+    - Focuses on the most relevant parts of the sequence, which helps in prioritizing critical regions
+      of the masked word and context.
+4. **Dense Layers**:
+    - Transforms the processed features into a prediction over the possible next letters.
+5. **Softmax Output**:
+    - Provides a probability distribution over all possible letters, enabling the model to make an informed guess.
 
-1. **Data Processing**: Converts words into masked inputs and target letters for prediction.
-2. **Model Definition**: Builds an LSTM model with an attention mechanism.
-3. **Training**: Trains the model using multiple examples of masked words.
-4. **Game Logic**: Implements the logic for playing Hangman, including predictions and updates.
+This architecture is ideal for Hangman because it models sequential dependencies and uses attention to effectively prioritize parts of the input that are crucial for guessing the next letter.
+

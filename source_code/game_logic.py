@@ -1,6 +1,6 @@
-
 import random
-from encode_utils import encode_word
+from encode_utils import Encoder
+
 
 class HangmanLocal:
     def __init__(self, train_dict, test_dict, model):
@@ -14,6 +14,9 @@ class HangmanLocal:
         self.incorrect_guesses = ""
 
     def start_new_game(self, word=None):
+        """
+        Initializes a new game session.
+        """
         self.guessed_letters = []
         self.clean_word = word if word else random.choice(self.test_dict)
         self.masked_word = "_ " * len(self.clean_word)
@@ -21,9 +24,13 @@ class HangmanLocal:
         self.incorrect_guesses = ""
 
     def predict_letter(self):
-        encoded = encode_word(self.masked_word.replace(" ", ""), self.clean_word, self.incorrect_guesses)
+        """
+        Predicts the next letter using the trained model.
+        """
+        encoded = Encoder.encode_word(self.masked_word.replace(" ", ""), self.clean_word, self.incorrect_guesses)
         probabilities = self.model.predict([encoded])[0]
         for idx, letter in enumerate(probabilities):
             if letter in self.guessed_letters:
                 probabilities[idx] = -2
         return max(probabilities, key=probabilities.get)
+
